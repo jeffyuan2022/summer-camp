@@ -9,9 +9,12 @@ app.use(express.json());
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !RESEND_API_KEY) {
+const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID;
+const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID;
+const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
   console.warn('WARNING: Missing credentials in .env');
 }
 
@@ -27,26 +30,29 @@ const getCarrierGateway = (carrier) => {
   return gateways[carrier?.toLowerCase()] || null;
 };
 
-const sendResendEmail = async (toEmails, subject, text) => {
-  const response = await fetch('https://api.resend.com/emails', {
+const sendEmailJS = async (toEmail, subject, text) => {
+  const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${RESEND_API_KEY}`
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      from: 'AGI Support <yihengy@graceallstaracademy.com>',
-      to: toEmails,
-      subject: subject,
-      text: text
+      service_id: EMAILJS_SERVICE_ID,
+      template_id: EMAILJS_TEMPLATE_ID,
+      user_id: EMAILJS_PUBLIC_KEY,
+      template_params: {
+        to_email: toEmail,
+        subject: subject,
+        message: text
+      }
     })
   });
   
-  const data = await response.json();
   if (!response.ok) {
-    throw new Error(`Resend Error: ${JSON.stringify(data)}`);
+    const errorText = await response.text();
+    throw new Error(`EmailJS Error: ${errorText}`);
   }
-  return data;
+  return true;
 };
 
 // Webhook for new Announcements
@@ -77,7 +83,7 @@ app.post('/api/webhooks/announcements', async (req, res) => {
 
     if (emails.length === 0) return res.status(200).json({ message: 'No valid phone/carrier combos found' });
 
-    await sendResendEmail(emails, 'New AGI Announcement', `Alert: ${title}. Check AGI Portal for details.`);
+    await Promise.all(emails.map(email => sendEmailJS(email, 'New AGI Announcement', `Alert: ${title}. Check AGI Portal for details.`)));
     console.log(`Announcement SMS sent to ${emails.length} hosts.`);
     
     return res.status(200).json({ success: true, count: emails.length });
@@ -118,7 +124,7 @@ app.post('/api/webhooks/messages', async (req, res) => {
 
     if (emails.length === 0) return res.status(200).json({ message: 'No valid phone/carrier combos found for admins' });
 
-    await sendResendEmail(emails, 'AGI Inbox Alert', `New msg from ${sender.family_name}. Log into AGI Portal to reply.`);
+    await Promise.all(emails.map(email => sendEmailJS(email, 'AGI Inbox Alert', `New msg from ${sender.family_name}. Log into AGI Portal to reply.`)));
     console.log(`Admin Message Alert sent to ${emails.length} admins.`);
     
     return res.status(200).json({ success: true, count: emails.length });
@@ -130,5 +136,5 @@ app.post('/api/webhooks/messages', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`SMS Gateway (Resend HTTP) running on port ${PORT}`);
+  console.log(`SMS Gateway (EmailJS REST API) running on port ${PORT}`);
 });
