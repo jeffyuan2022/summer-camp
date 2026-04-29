@@ -20,7 +20,7 @@ const Home = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundImage: 'url("/images/host_family_hero_1776660093102.png")',
+          backgroundImage: `url("${import.meta.env.BASE_URL}images/host_family_hero_1776660093102.png")`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           filter: 'brightness(0.6)',
@@ -114,7 +114,7 @@ const Home = () => {
         <div className="container flex items-center gap-8 flex-wrap">
           <div style={{ flex: '1 1 500px' }}>
             <img 
-              src="/images/cultural_exchange_1776660115913.png" 
+              src={`${import.meta.env.BASE_URL}images/cultural_exchange_1776660115913.png`} 
               alt="Cultural Exchange" 
               style={{ width: '100%', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)' }} 
             />
