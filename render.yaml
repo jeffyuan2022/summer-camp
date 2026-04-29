@@ -18,3 +18,5 @@ services:
         sync: false
       - key: EMAILJS_PUBLIC_KEY
         sync: false
+      - key: EMAILJS_PRIVATE_KEY
+        sync: false
