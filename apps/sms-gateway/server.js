@@ -1,5 +1,4 @@
 import express from 'express';
-import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
@@ -10,21 +9,13 @@ app.use(express.json());
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  console.warn('WARNING: Missing Supabase credentials in .env');
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !RESEND_API_KEY) {
+  console.warn('WARNING: Missing credentials in .env');
 }
 
 const supabase = createClient(SUPABASE_URL || 'http://localhost', SUPABASE_SERVICE_KEY || 'dummy-key');
-
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.ethereal.email',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
 
 const getCarrierGateway = (carrier) => {
   const gateways = {
@@ -36,19 +27,36 @@ const getCarrierGateway = (carrier) => {
   return gateways[carrier?.toLowerCase()] || null;
 };
 
+const sendResendEmail = async (toEmails, subject, text) => {
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${RESEND_API_KEY}`
+    },
+    body: JSON.stringify({
+      from: 'AGI Support <yihengy@graceallstaracademy.com>',
+      to: toEmails,
+      subject: subject,
+      text: text
+    })
+  });
+  
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(`Resend Error: ${JSON.stringify(data)}`);
+  }
+  return data;
+};
+
 // Webhook for new Announcements
 app.post('/api/webhooks/announcements', async (req, res) => {
   try {
     const { record, type } = req.body;
-    
-    // Only process inserts
-    if (type !== 'INSERT') {
-      return res.status(200).json({ message: 'Not an insert event' });
-    }
+    if (type !== 'INSERT') return res.status(200).json({ message: 'Not an insert event' });
 
     const title = record.title;
 
-    // Fetch all Hosts who opted in to SMS
     const { data: hosts, error } = await supabase
       .from('profiles')
       .select('phone_number, carrier')
@@ -56,9 +64,7 @@ app.post('/api/webhooks/announcements', async (req, res) => {
       .eq('sms_consent', true);
 
     if (error) throw error;
-    if (!hosts || hosts.length === 0) {
-      return res.status(200).json({ message: 'No opted-in hosts found' });
-    }
+    if (!hosts || hosts.length === 0) return res.status(200).json({ message: 'No opted-in hosts found' });
 
     const emails = hosts.map(host => {
       const gateway = getCarrierGateway(host.carrier);
@@ -69,20 +75,10 @@ app.post('/api/webhooks/announcements', async (req, res) => {
       return null;
     }).filter(Boolean);
 
-    if (emails.length === 0) {
-      return res.status(200).json({ message: 'No valid phone/carrier combos found' });
-    }
+    if (emails.length === 0) return res.status(200).json({ message: 'No valid phone/carrier combos found' });
 
-    // Send emails
-    const mailOptions = {
-      from: `"AGI Portal" <${process.env.SMTP_USER}>`,
-      to: emails.join(','), // BCC or comma-separated TO
-      subject: 'New AGI Announcement',
-      text: `Alert: ${title}. Check AGI Portal for details.`
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`Announcement SMS sent to ${emails.length} hosts. Message ID: ${info.messageId}`);
+    await sendResendEmail(emails, 'New AGI Announcement', `Alert: ${title}. Check AGI Portal for details.`);
+    console.log(`Announcement SMS sent to ${emails.length} hosts.`);
     
     return res.status(200).json({ success: true, count: emails.length });
   } catch (error) {
@@ -95,19 +91,13 @@ app.post('/api/webhooks/announcements', async (req, res) => {
 app.post('/api/webhooks/messages', async (req, res) => {
   try {
     const { record, type } = req.body;
-    
-    if (type !== 'INSERT') {
-      return res.status(200).json({ message: 'Not an insert event' });
-    }
+    if (type !== 'INSERT') return res.status(200).json({ message: 'Not an insert event' });
     
     const senderId = record.sender_id;
     const { data: sender } = await supabase.from('profiles').select('role, family_name').eq('id', senderId).single();
     
-    if (!sender || sender.role !== 'host') {
-      return res.status(200).json({ message: 'Sender is not a host, ignoring.' });
-    }
+    if (!sender || sender.role !== 'host') return res.status(200).json({ message: 'Sender is not a host, ignoring.' });
 
-    // Fetch all Admins who opted in to SMS
     const { data: admins, error } = await supabase
       .from('profiles')
       .select('phone_number, carrier')
@@ -115,9 +105,7 @@ app.post('/api/webhooks/messages', async (req, res) => {
       .eq('sms_consent', true);
 
     if (error) throw error;
-    if (!admins || admins.length === 0) {
-      return res.status(200).json({ message: 'No opted-in admins found' });
-    }
+    if (!admins || admins.length === 0) return res.status(200).json({ message: 'No opted-in admins found' });
 
     const emails = admins.map(admin => {
       const gateway = getCarrierGateway(admin.carrier);
@@ -128,19 +116,10 @@ app.post('/api/webhooks/messages', async (req, res) => {
       return null;
     }).filter(Boolean);
 
-    if (emails.length === 0) {
-      return res.status(200).json({ message: 'No valid phone/carrier combos found for admins' });
-    }
+    if (emails.length === 0) return res.status(200).json({ message: 'No valid phone/carrier combos found for admins' });
 
-    const mailOptions = {
-      from: `"AGI Portal" <${process.env.SMTP_USER}>`,
-      to: emails.join(','), 
-      subject: 'AGI Inbox Alert',
-      text: `New msg from ${sender.family_name}. Log into AGI Portal to reply.`
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`Admin Message Alert sent to ${emails.length} admins. Message ID: ${info.messageId}`);
+    await sendResendEmail(emails, 'AGI Inbox Alert', `New msg from ${sender.family_name}. Log into AGI Portal to reply.`);
+    console.log(`Admin Message Alert sent to ${emails.length} admins.`);
     
     return res.status(200).json({ success: true, count: emails.length });
   } catch (error) {
@@ -151,5 +130,5 @@ app.post('/api/webhooks/messages', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`SMS Gateway running on port ${PORT}`);
+  console.log(`SMS Gateway (Resend HTTP) running on port ${PORT}`);
 });
