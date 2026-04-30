@@ -1,6 +1,7 @@
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import { google } from 'googleapis';
 
 dotenv.config();
 
@@ -10,16 +11,27 @@ app.use(express.json());
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID;
-const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID;
-const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
-const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY;
+const GMAIL_CLIENT_ID = process.env.GMAIL_CLIENT_ID;
+const GMAIL_CLIENT_SECRET = process.env.GMAIL_CLIENT_SECRET;
+const GMAIL_REFRESH_TOKEN = process.env.GMAIL_REFRESH_TOKEN;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY || !EMAILJS_PRIVATE_KEY) {
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET || !GMAIL_REFRESH_TOKEN) {
   console.warn('WARNING: Missing credentials in .env');
 }
 
 const supabase = createClient(SUPABASE_URL || 'http://localhost', SUPABASE_SERVICE_KEY || 'dummy-key');
+
+// Setup Google OAuth2 client
+const oAuth2Client = new google.auth.OAuth2(
+  GMAIL_CLIENT_ID,
+  GMAIL_CLIENT_SECRET,
+  "https://developers.google.com/oauthplayground"
+);
+
+// Pass the refresh token, and googleapis automatically refreshes the access token when needed!
+oAuth2Client.setCredentials({ refresh_token: GMAIL_REFRESH_TOKEN });
+
+const gmail = google.gmail({ version: 'v1', auth: oAuth2Client });
 
 const getCarrierGateway = (carrier) => {
   const gateways = {
@@ -31,30 +43,34 @@ const getCarrierGateway = (carrier) => {
   return gateways[carrier?.toLowerCase()] || null;
 };
 
-const sendEmailJS = async (toEmail, subject, text) => {
-  const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      service_id: EMAILJS_SERVICE_ID,
-      template_id: EMAILJS_TEMPLATE_ID,
-      user_id: EMAILJS_PUBLIC_KEY,
-      accessToken: EMAILJS_PRIVATE_KEY,
-      template_params: {
-        to_email: toEmail,
-        subject: subject,
-        message: text
-      }
-    })
-  });
+const sendGmailApiEmail = async (toEmail, subject, text) => {
+  // Gmail API requires raw RFC 2822 email payload, encoded in base64url
+  const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
+  const messageParts = [
+    `To: ${toEmail}`,
+    `Subject: ${utf8Subject}`,
+    'Content-Type: text/plain; charset=utf-8',
+    'MIME-Version: 1.0',
+    '',
+    text
+  ];
+  const message = messageParts.join('\r\n');
   
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`EmailJS Error: ${errorText}`);
-  }
-  return true;
+  // Base64url encode the message
+  const encodedMessage = Buffer.from(message)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+  const response = await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: {
+      raw: encodedMessage,
+    },
+  });
+
+  return response.data;
 };
 
 // Webhook for new Announcements
@@ -85,8 +101,8 @@ app.post('/api/webhooks/announcements', async (req, res) => {
 
     if (emails.length === 0) return res.status(200).json({ message: 'No valid phone/carrier combos found' });
 
-    await Promise.all(emails.map(email => sendEmailJS(email, 'New AGI Announcement', `Alert: ${title}. Check AGI Portal for details.`)));
-    console.log(`Announcement SMS sent to ${emails.length} hosts.`);
+    await Promise.all(emails.map(email => sendGmailApiEmail(email, 'AGI Alert', `New Announcement: ${title}.`)));
+    console.log(`Announcement SMS sent to ${emails.length} hosts via Gmail API.`);
     
     return res.status(200).json({ success: true, count: emails.length });
   } catch (error) {
@@ -126,8 +142,8 @@ app.post('/api/webhooks/messages', async (req, res) => {
 
     if (emails.length === 0) return res.status(200).json({ message: 'No valid phone/carrier combos found for admins' });
 
-    await Promise.all(emails.map(email => sendEmailJS(email, 'AGI Inbox Alert', `New msg from ${sender.family_name}. Log into AGI Portal to reply.`)));
-    console.log(`Admin Message Alert sent to ${emails.length} admins.`);
+    await Promise.all(emails.map(email => sendGmailApiEmail(email, 'AGI Inbox', `New msg from ${sender.family_name}. Log into portal.`)));
+    console.log(`Admin Message Alert sent to ${emails.length} admins via Gmail API.`);
     
     return res.status(200).json({ success: true, count: emails.length });
   } catch (error) {
@@ -138,5 +154,5 @@ app.post('/api/webhooks/messages', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`SMS Gateway (EmailJS REST API) running on port ${PORT}`);
+  console.log(`SMS Gateway (Gmail API) running on port ${PORT}`);
 });

@@ -12,11 +12,9 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: EMAILJS_SERVICE_ID
+      - key: GMAIL_CLIENT_ID
         sync: false
-      - key: EMAILJS_TEMPLATE_ID
+      - key: GMAIL_CLIENT_SECRET
         sync: false
-      - key: EMAILJS_PUBLIC_KEY
-        sync: false
-      - key: EMAILJS_PRIVATE_KEY
+      - key: GMAIL_REFRESH_TOKEN
         sync: false
