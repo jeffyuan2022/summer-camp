@@ -7,8 +7,8 @@ const FAQ = () => {
       answer: "Absolutely not! The primary goal of the camp is for the students to experience American culture and practice their English in an immersive environment. Your everyday English is exactly what they need."
     },
     {
-      question: "Can I host more than one student?",
-      answer: "Yes, you can host up to two students. If hosting two students of the same gender, they are allowed to share a Queen or King-sized bed. You will receive the $560 compensation per student."
+      question: "How many students can I host?",
+      answer: "You must host a minimum of two students, and there is no maximum limitation! Two students of the same gender are allowed to share a Queen or King-sized bed. You will receive the $560 compensation per student."
     },
     {
       question: "What happens during the day while I work?",

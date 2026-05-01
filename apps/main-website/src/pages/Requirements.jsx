@@ -18,7 +18,7 @@ const Requirements = () => {
               <h2 style={{ fontSize: '1.5rem', color: 'var(--blue-900)' }}>Lodging & Sleeping</h2>
             </div>
             <p style={{ color: 'var(--text-muted)' }}>
-              You must provide a dedicated, comfortable bed for each student. If you host one student, a Twin bed is sufficient. If you host two students of the same gender, they may share a Queen or King-sized bed. Air mattresses or couches are not acceptable.
+              You must host a minimum of two students, with no maximum limitation. You must provide a dedicated, comfortable bed for each student. Two students of the same gender may share a Queen or King-sized bed. Air mattresses or couches are not acceptable.
             </p>
           </div>
 
@@ -28,7 +28,7 @@ const Requirements = () => {
               <h2 style={{ fontSize: '1.5rem', color: 'var(--blue-900)' }}>Transportation</h2>
             </div>
             <p style={{ color: 'var(--text-muted)' }}>
-              Hosts are required to provide daily pick-up and drop-off. The location is the <b>Amazing Grace Institute</b> located at <b>10760 Thernmint Rd. San Diego, CA 92127</b>. Specific morning drop-off times and evening pick-up times will be provided in the finalized schedule.
+              Hosts are required to provide daily pick-up and drop-off at the <b>Amazing Grace Institute</b> (<b>10760 Thernmint Rd. San Diego, CA 92127</b>). On the first day (July 4th), you will only pick up students around 6 PM. On the last day (July 12th), you will only drop off students around 9 AM.
             </p>
           </div>
 
@@ -38,7 +38,7 @@ const Requirements = () => {
               <h2 style={{ fontSize: '1.5rem', color: 'var(--blue-900)' }}>Meals</h2>
             </div>
             <p style={{ color: 'var(--text-muted)' }}>
-              Host families must provide daily breakfast and dinner for the students. Lunches are typically provided by the camp during their daily excursions, unless specified otherwise.
+              Host families must provide daily breakfast and dinner for the students. On the first day (July 4th), you are only responsible for dinner. On the last day (July 12th), you are only responsible for breakfast. Lunches are typically provided by the camp during their daily excursions.
             </p>
           </div>
 
